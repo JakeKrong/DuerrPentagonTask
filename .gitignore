@@ -1,5 +1,4 @@
 # --- Build output ---
-# Visual Studio's CMake integration builds into out/; command-line builds usually use build/
 out/
 build/
 build-*/

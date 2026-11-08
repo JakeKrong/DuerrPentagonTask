@@ -3,10 +3,17 @@
 
 #include "DurrPentagonTask.h"
 
-using namespace std;
+#include <QApplication>
+#include <QLabel>
 
-int main()
+int main(int argc, char* argv[])
 {
-	cout << "Hello CMake." << endl;
-	return 0;
+	QApplication app(argc, argv);
+
+	QLabel label(QStringLiteral("Hello from Qt %1").arg(QString::fromLatin1(qVersion())));
+	label.setAlignment(Qt::AlignCenter);
+	label.resize(320, 120);
+	label.show();
+
+	return app.exec();
 }
