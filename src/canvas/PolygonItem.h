@@ -4,14 +4,22 @@
 #pragma once
 
 #include <QGraphicsPolygonItem>
+#include <QObject>
 
 class PentagonModel;
 
-class PolygonItem : public QGraphicsPolygonItem
+//Also a QObject, so the item itself can receive the model's signals. Qt then breaks those connections
+//automatically when the item is deleted. QGraphicsObject is built the same way; QObject has to be the first base.
+class PolygonItem : public QObject, public QGraphicsPolygonItem
 {
+	Q_OBJECT
+
 public:
 	explicit PolygonItem(PentagonModel* model, QGraphicsItem* parent = nullptr);
 
 private:
+	void updateShape();
+	void updateColor();
+
 	PentagonModel* m_model = nullptr;
 };
