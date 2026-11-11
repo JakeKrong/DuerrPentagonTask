@@ -37,6 +37,10 @@ private slots:
 	void setFillColorNotifiesWithNewColor();
 	void setTextNotifiesWithNewText();
 	void settingSameValuesEmitsNothing();
+	void setPointStaysOnCanvas();
+	void translateStopsAtTheEdge();
+	void setAreaGrowsOnlyAsFarAsTheCanvas();
+	void resetPolygonRestoresShapeAndColor();
 };
 
 void TestPentagonModel::startsAsRegularPentagon()
@@ -57,6 +61,7 @@ void TestPentagonModel::startsAsRegularPentagon()
 
 	//A regular pentagon with corners r from the centre has area (5/2) r^2 sin(72 degrees)
 	QCOMPARE(model.area(), 2.5 * radius * radius * std::sin(qDegreesToRadians(72.0)));
+	QVERIFY(PentagonModel::Bounds.contains(points.boundingRect()));
 	QVERIFY(model.fillColor().isValid());
 	QVERIFY(!model.text().isEmpty());
 }
@@ -194,6 +199,79 @@ void TestPentagonModel::settingSameValuesEmitsNothing()
 	QCOMPARE(pointsSpy.count(), 0);
 	QCOMPARE(colorSpy.count(), 0);
 	QCOMPARE(textSpy.count(), 0);
+}
+
+void TestPentagonModel::setPointStaysOnCanvas()
+{
+	PentagonModel model;
+	const QRectF bounds = PentagonModel::Bounds;
+
+	model.setPoint(0, QPointF(bounds.right() + 50, bounds.top() - 70));
+
+	QCOMPARE(model.point(0), QPointF(bounds.right(), bounds.top()));  //Nearest point on the canvas
+}
+
+void TestPentagonModel::translateStopsAtTheEdge()
+{
+	PentagonModel model;
+	const QPolygonF before = model.polygon();
+	QSignalSpy spy(&model, &PentagonModel::pointsChanged);
+
+	model.translate(QPointF(10000, 0));
+
+	//Moved right as far as it could go, with its shape unchanged
+	const double dx = PentagonModel::Bounds.right() - before.boundingRect().right();
+	QCOMPARE(spy.count(), 1);
+	QCOMPARE(model.polygon(), before.translated(dx, 0));
+
+	model.translate(QPointF(50, 0));  //Already against the edge, so there's nothing to do
+
+	QCOMPARE(spy.count(), 1);
+}
+
+void TestPentagonModel::setAreaGrowsOnlyAsFarAsTheCanvas()
+{
+	PentagonModel model;
+	const double areaBefore = model.area();
+
+	model.setArea(1.0e9);
+
+	const QRectF box = model.polygon().boundingRect();
+	const QRectF bounds = PentagonModel::Bounds;
+	QVERIFY(model.area() > areaBefore);
+	QVERIFY(bounds.contains(box));
+	//It grew until it touched an edge
+	QVERIFY(qFuzzyCompare(box.left(), bounds.left()) || qFuzzyCompare(box.right(), bounds.right())
+	        || qFuzzyCompare(box.top(), bounds.top()) || qFuzzyCompare(box.bottom(), bounds.bottom()));
+}
+
+void TestPentagonModel::resetPolygonRestoresShapeAndColor()
+{
+	const PentagonModel original;
+	PentagonModel model;
+	model.setPoint(1, QPointF(200, -150));
+	model.translate(QPointF(-40, 60));
+	model.setArea(model.area() * 2);
+	model.setFillColor(Qt::red);
+	model.setText(QStringLiteral("Kept"));
+	QSignalSpy pointsSpy(&model, &PentagonModel::pointsChanged);
+	QSignalSpy colorSpy(&model, &PentagonModel::fillColorChanged);
+	QSignalSpy textSpy(&model, &PentagonModel::textChanged);
+
+	model.resetPolygon();
+
+	QCOMPARE(model.polygon(), original.polygon());
+	QCOMPARE(model.area(), original.area());
+	QCOMPARE(model.fillColor(), original.fillColor());
+	QCOMPARE(model.text(), QStringLiteral("Kept"));  //The label isn't part of the polygon
+	QCOMPARE(pointsSpy.count(), 1);  //One signal for all 5 points
+	QCOMPARE(colorSpy.count(), 1);
+	QCOMPARE(textSpy.count(), 0);
+
+	model.resetPolygon();  //Already as it started: nothing to signal
+
+	QCOMPARE(pointsSpy.count(), 1);
+	QCOMPARE(colorSpy.count(), 1);
 }
 
 //The model needs no widgets or windows, so a QCoreApplication is enough (no platform plugin needed)

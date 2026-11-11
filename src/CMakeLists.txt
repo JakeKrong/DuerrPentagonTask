@@ -9,10 +9,11 @@ target_link_libraries (PentagonCore PUBLIC Qt6::Gui)
 # Headers are included relative to src/ (e.g. "canvas/PolygonItem.h"), from here and from anything that links this
 target_include_directories (PentagonCore PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 
-# The application: the window, the canvas items and the property widgets.
-qt_add_executable (DurrPentagonTask
-  main.cpp
+# UI library: the window, the canvas items and the property widgets. A library rather than part of the app,
+# so the editor tests can create the real window too.
+qt_add_library (PentagonUi STATIC
   MainWindow.cpp MainWindow.h
+  canvas/CanvasView.cpp canvas/CanvasView.h
   canvas/PolygonItem.cpp canvas/PolygonItem.h
   canvas/VertexHandle.cpp canvas/VertexHandle.h
   canvas/LabelItem.cpp canvas/LabelItem.h
@@ -20,7 +21,12 @@ qt_add_executable (DurrPentagonTask
   properties/ColorProperty.cpp properties/ColorProperty.h
   properties/PointProperty.cpp properties/PointProperty.h
 )
-target_link_libraries (DurrPentagonTask PRIVATE PentagonCore Qt6::Widgets)
+target_link_libraries (PentagonUi PUBLIC PentagonCore Qt6::Widgets)
+
+# The application: just main(), which shows the window.
+qt_add_executable (DurrPentagonTask main.cpp)
+target_link_libraries (DurrPentagonTask PRIVATE PentagonUi)
+
 # Start as a GUI app on Windows (no console window behind it); ignored on other platforms.
 set_target_properties (DurrPentagonTask PROPERTIES WIN32_EXECUTABLE ON)
 

@@ -14,7 +14,7 @@ if (POLICY CMP0141)
   set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>")
 endif()
 
-# Fetch QT automatically on the first configure (refer cmake/FetchQt.cmake)
+# Fetch QT automatically on the first configure
 include ("cmake/FetchQt.cmake")
 find_package (Qt6 6.5 REQUIRED COMPONENTS Widgets)
 qt_standard_project_setup ()

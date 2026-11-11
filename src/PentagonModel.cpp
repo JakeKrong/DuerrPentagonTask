@@ -2,25 +2,42 @@
 
 #include <QtMath>
 
+#include <algorithm>
 #include <cmath>
 
 namespace
 {
-	constexpr double DefaultRadius = 120.0;  //Distance from the centre to each corner of the starting shape
+	constexpr double DefaultRadius = 120.0;
+
+	//To contruct default shape (when initialising or resetting)
+	//Corners evenly spaced round a circle, 72 degrees apart, starting straight up (scene y grows downwards, so -90 degrees is up).
+	QPolygonF defaultPolygon()
+	{
+		QPolygonF points;
+		for (int i = 0; i < PentagonModel::PointCount; ++i)
+		{
+			const double angle = qDegreesToRadians(-90.0 + i * 360.0 / PentagonModel::PointCount);
+			points << QPointF(DefaultRadius * std::cos(angle), DefaultRadius * std::sin(angle));
+		}
+		return points;
+	}
+
+	QColor defaultFillColor()
+	{
+		return QColor(0x4a, 0x90, 0xd9); //Default blue colour
+	}
 }
 
 PentagonModel::PentagonModel(QObject* parent)
 	: QObject(parent)
-	, m_fillColor(0x4a, 0x90, 0xd9)
+	, m_points(defaultPolygon())
+	, m_fillColor(defaultFillColor())
 	, m_text(tr("Pentagon"))
+{}
+
+QPointF PentagonModel::clampToBounds(const QPointF& point)
 {
-	//Corners evenly spaced round a circle, 72 degrees apart, starting straight up.
-	//Scene y grows downwards, so -90 degrees is up.
-	for (int i = 0; i < PointCount; ++i)
-	{
-		const double angle = qDegreesToRadians(-90.0 + i * 360.0 / PointCount);
-		m_points << QPointF(DefaultRadius * std::cos(angle), DefaultRadius * std::sin(angle));
-	}
+	return QPointF(qBound(Bounds.left(), point.x(), Bounds.right()), qBound(Bounds.top(), point.y(), Bounds.bottom()));
 }
 
 QPointF PentagonModel::point(int index) const
@@ -51,20 +68,26 @@ double PentagonModel::polygonArea(const QPolygonF& polygon)
 void PentagonModel::setPoint(int index, const QPointF& point)
 {
 	Q_ASSERT(index >= 0 && index < PointCount);
+	const QPointF clamped = clampToBounds(point);
 	//QPointF's == is a fuzzy compare, so tiny rounding differences don't count as a change
-	if (m_points.at(index) == point)
+	if (m_points.at(index) == clamped)
 		return;
 
-	m_points[index] = point;
+	m_points[index] = clamped;
 	emit pointsChanged();
 }
 
 void PentagonModel::translate(const QPointF& offset)
 {
-	if (offset.isNull())
+	//Stop at the edge of the canvas, limiting the offset so the shape's bounding box stays inside Bounds
+	const QRectF box = m_points.boundingRect();
+	const QPointF allowed(qBound(Bounds.left() - box.left(), offset.x(), Bounds.right() - box.right()),
+	                      qBound(Bounds.top() - box.top(), offset.y(), Bounds.bottom() - box.bottom()));
+	if (allowed.isNull())
 		return;
 
-	m_points.translate(offset);
+	for (QPointF& p : m_points)
+		p = clampToBounds(p + allowed);  //The clamp only removes rounding errors right at the edge
 	emit pointsChanged();
 }
 
@@ -76,11 +99,31 @@ void PentagonModel::setArea(double newArea)
 
 	//Area grows with the square of the size, so lengths scale by the square root of the area ratio.
 	//Scaling about any fixed point gives the same area; the centre only decides which spot stays put.
-	const double factor = std::sqrt(newArea / oldArea);
-	const QPointF centre = m_points.boundingRect().center();
+	double factor = std::sqrt(newArea / oldArea);
+	const QRectF box = m_points.boundingRect();
+	const QPointF centre = box.center();
+
+	//Grow no bigger than fits: the room from the centre to the nearest canvas edge, over half the box's size
+	const double roomX = std::min(centre.x() - Bounds.left(), Bounds.right() - centre.x());
+	const double roomY = std::min(centre.y() - Bounds.top(), Bounds.bottom() - centre.y());
+	factor = std::min({ factor, roomX / (box.width() / 2), roomY / (box.height() / 2) });
+	if (qFuzzyCompare(factor, 1.0))
+		return;  //Already as big as the canvas allows
+
 	for (QPointF& p : m_points)
-		p = centre + (p - centre) * factor;
+		p = clampToBounds(centre + (p - centre) * factor);  //The clamp only removes rounding errors at the edge
 	emit pointsChanged();
+}
+
+void PentagonModel::resetPolygon()
+{
+	const QPolygonF original = defaultPolygon();
+	if (m_points != original)
+	{
+		m_points = original;
+		emit pointsChanged();
+	}
+	setFillColor(defaultFillColor());
 }
 
 void PentagonModel::setFillColor(const QColor& color)

@@ -23,7 +23,7 @@ VertexHandle::VertexHandle(PentagonModel* model, int index, QGraphicsItem* paren
 	setPen(outline);
 	setCursor(Qt::SizeAllCursor);
 	setToolTip(tr("Point %1").arg(index + 1));
-	setZValue(1);  //Above the polygon, so where they overlap the handle is what gets clicked
+	setZValue(1);  //Rendered above the polygon, so where they overlap the handle is what gets clicked
 
 	//ItemSendsGeometryChanges is needed for itemChange() to hear about position changes.
 	//ItemIgnoresTransformations keeps the handle the same size on screen if the view is zoomed.
@@ -35,6 +35,12 @@ VertexHandle::VertexHandle(PentagonModel* model, int index, QGraphicsItem* paren
 
 QVariant VertexHandle::itemChange(GraphicsItemChange change, const QVariant& value)
 {
+	//ItemPositionChange comes before the move, and whatever is returned is used instead. Keeping the handle on the
+	//canvas here matters: if it were allowed off the edge, the model would clamp the point but might not change
+	//(already at the edge), so it wouldn't signal, and the handle would be left out of step with its point.
+	if (change == ItemPositionChange)
+		return PentagonModel::clampToBounds(value.toPointF());
+
 	//The handle has no parent item, so its position is in scene coordinates, the same as the model's points.
 	//This also runs when updatePosition() moves the handle to match the model. The model then sees that the
 	//point hasn't changed and doesn't signal again, which is what stops an endless loop.
